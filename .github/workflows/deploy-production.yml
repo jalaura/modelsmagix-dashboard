@@ -53,7 +53,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: modelmagic-dashboard
+          projectName: modelsmagix-dashboard
           directory: .next
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           wranglerVersion: '3'
