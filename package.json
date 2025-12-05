@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:cloudflare": "prisma generate && npx @cloudflare/next-on-pages",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
@@ -49,6 +50,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
