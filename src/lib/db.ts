@@ -15,7 +15,8 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const pool = new Pool({ connectionString })
-  const adapter = new PrismaNeon(pool)
+  // Type assertion needed due to version mismatch between packages
+  const adapter = new PrismaNeon(pool as any)
   return new PrismaClient({ adapter })
 }
 
