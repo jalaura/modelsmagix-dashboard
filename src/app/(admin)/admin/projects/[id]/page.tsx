@@ -4,6 +4,9 @@ import { projectService, assetService } from "@/lib/services"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ProjectStatusBadge } from "@/components/project/project-status-badge"
+import { AssignPackageModal } from "@/components/admin/assign-package-modal"
+import { MarkPaidModal } from "@/components/admin/mark-paid-modal"
+import { StatusUpdateModal } from "@/components/admin/status-update-modal"
 import {
   STATUS_INFO,
   getValidNextStatuses,
@@ -59,6 +62,15 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
             </span>
           </div>
         </div>
+
+        {/* Quick Actions */}
+        <div className="flex gap-2">
+          {nextStatuses.length > 0 && (
+            <StatusUpdateModal projectId={project.id} currentStatus={project.status}>
+              <Button variant="outline">Change Status</Button>
+            </StatusUpdateModal>
+          )}
+        </div>
       </div>
 
       {/* Client Info */}
@@ -89,22 +101,29 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
           {/* Action buttons based on status */}
           <div className="flex flex-wrap gap-4">
             {project.status === "INTAKE_NEW" && (
-              <Button>Assign Package</Button>
+              <AssignPackageModal projectId={project.id}>
+                <Button>Assign Package</Button>
+              </AssignPackageModal>
             )}
             {project.status === "AWAITING_PAYMENT" && (
-              <Button>Mark as Paid</Button>
+              <MarkPaidModal projectId={project.id}>
+                <Button>Mark as Paid</Button>
+              </MarkPaidModal>
             )}
             {project.status === "IN_QUEUE" && (
-              <Button>Start Generating</Button>
+              <StatusUpdateModal projectId={project.id} currentStatus={project.status}>
+                <Button>Start Generating</Button>
+              </StatusUpdateModal>
             )}
             {project.status === "GENERATING" && (
-              <Button>Upload Generated Assets</Button>
+              <StatusUpdateModal projectId={project.id} currentStatus={project.status}>
+                <Button>Mark Ready for Review</Button>
+              </StatusUpdateModal>
             )}
-
-            {nextStatuses.length > 0 && (
-              <div className="text-sm text-muted-foreground">
-                Next states: {nextStatuses.join(", ")}
-              </div>
+            {project.status === "REVIEW_READY" && (
+              <StatusUpdateModal projectId={project.id} currentStatus={project.status}>
+                <Button>Mark Complete</Button>
+              </StatusUpdateModal>
             )}
           </div>
         </CardContent>
@@ -197,10 +216,6 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Generated Images ({assets.generated.length})</CardTitle>
-          {(project.status === "GENERATING" ||
-            project.status === "REVIEW_READY") && (
-            <Button size="sm">Upload Images</Button>
-          )}
         </CardHeader>
         <CardContent>
           {assets.generated.length === 0 ? (
