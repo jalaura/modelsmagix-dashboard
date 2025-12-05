@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 import { Suspense } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"

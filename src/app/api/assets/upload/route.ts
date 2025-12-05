@@ -3,6 +3,8 @@
  * POST: Get presigned upload URL
  */
 
+export const runtime = 'edge'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { assetService } from '@/lib/services'
 import { RequestUploadUrlSchema } from '@/lib/validations'

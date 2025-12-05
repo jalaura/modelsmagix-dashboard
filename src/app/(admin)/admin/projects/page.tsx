@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 import Link from "next/link"
 import { projectService } from "@/lib/services"
 import { Card, CardContent } from "@/components/ui/card"

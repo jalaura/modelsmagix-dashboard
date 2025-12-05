@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 import Link from "next/link"
 import { auth } from "@/lib/auth"
 import { projectService } from "@/lib/services"
