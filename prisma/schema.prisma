@@ -1,9 +1,10 @@
-// Prisma Schema for Models Magix Dashboard
+// Prisma Schema for ModelMagic Dashboard
 // Database: PostgreSQL (Neon)
-// Provider: Prisma Client JS
+// Aligned with project specification v1.0
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -12,35 +13,74 @@ datasource db {
 }
 
 // ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  CLIENT
+  ADMIN
+}
+
+enum ProjectStatus {
+  INTAKE_NEW        // Client submits form
+  AWAITING_PAYMENT  // Admin assigns package
+  PAID              // Admin marks paid
+  IN_QUEUE          // System auto-transitions
+  GENERATING        // Admin starts production
+  REVIEW_READY      // Assets uploaded
+  COMPLETED         // Client approves
+}
+
+enum AssetType {
+  REFERENCE   // Client-uploaded flat-lay images
+  GENERATED   // AI-generated model shots
+}
+
+enum AssetStatus {
+  PENDING
+  READY
+  REVISION_REQUESTED
+  APPROVED
+}
+
+enum NotificationType {
+  PAYMENT_REQUESTED
+  PAYMENT_CONFIRMED
+  MAGIC_LINK_SENT
+  ASSETS_READY
+  REVISION_SUBMITTED
+  PROJECT_COMPLETED
+}
+
+// ============================================
 // USER & AUTHENTICATION MODELS
 // ============================================
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  emailVerified   DateTime?
-  name            String?
-  image           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String
+  image         String?
+  role          UserRole  @default(CLIENT)
 
   // Relations
-  accounts        Account[]
-  sessions        Session[]
-  projects        Project[]
-  assets          Asset[]
-  notifications   Notification[]
-  activityLogs    ActivityLog[]
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+  magicLinks    MagicLink[]
+  notifications Notification[]
+  statusChanges ProjectStatusHistory[] @relation("ChangedBy")
 
-  // Billing (Phase 2)
-  stripeCustomerId     String?   @unique
-  stripeSubscriptionId String?   @unique
-  stripePriceId        String?
-  stripeCurrentPeriodEnd DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+  @@index([role])
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String  @id @default(uuid())
   userId            String
   type              String
   provider          String
@@ -56,14 +96,18 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(uuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
+
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -74,144 +118,130 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model MagicLink {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 // ============================================
 // CORE BUSINESS MODELS
 // ============================================
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  userId      String
-  status      ProjectStatus @default(DRAFT)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Project Details
+  productType     String        // e.g., Clothing, Accessories, Footwear
+  creativeBrief   String        @db.Text
+
+  // Status and Workflow
+  status          ProjectStatus @default(INTAKE_NEW)
+
+  // Package and Payment
+  packageType     String?       // e.g., 10-shots, 20-shots
+  paymentLinkUrl  String?       // Lemon Squeezy URL
+  paidAt          DateTime?
+
+  // Completion
+  completedAt     DateTime?
 
   // Relations
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assets      Asset[]
+  assets          Asset[]
+  statusHistory   ProjectStatusHistory[]
+  notifications   Notification[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([userId])
-}
-
-enum ProjectStatus {
-  DRAFT
-  IN_PROGRESS
-  COMPLETED
-  ARCHIVED
-}
-
-model Asset {
-  id            String      @id @default(cuid())
-  originalName  String
-  storagePath   String      // S3/R2 path
-  storageUrl    String      // Public URL
-  thumbnailUrl  String?
-  fileSize      Int         // bytes
-  mimeType      String
-  width         Int?
-  height        Int?
-  status        AssetStatus @default(PENDING)
-  userId        String
-  projectId     String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  // AI Processing Results
-  aiProcessed   Boolean     @default(false)
-  aiResults     Json?       // Store AI analysis results
-
-  // Relations
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project       Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  outputs       AssetOutput[]
-
-  @@index([userId])
-  @@index([projectId])
   @@index([status])
-}
-
-enum AssetStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-model AssetOutput {
-  id          String   @id @default(cuid())
-  assetId     String
-  outputType  String   // e.g., "background_removed", "enhanced", "resized"
-  storagePath String
-  storageUrl  String
-  fileSize    Int
-  metadata    Json?
-  createdAt   DateTime @default(now())
-
-  // Relations
-  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-
-  @@index([assetId])
-}
-
-// ============================================
-// ACTIVITY & NOTIFICATIONS
-// ============================================
-
-model ActivityLog {
-  id          String   @id @default(cuid())
-  userId      String
-  action      String   // e.g., "project.created", "asset.uploaded"
-  entityType  String?  // e.g., "Project", "Asset"
-  entityId    String?
-  metadata    Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-
-  // Relations
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
   @@index([createdAt])
 }
 
+model Asset {
+  id            String      @id @default(uuid())
+  projectId     String
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Asset Classification
+  type          AssetType
+  status        AssetStatus @default(PENDING)
+
+  // File Information
+  fileName      String
+  fileUrl       String      // R2 URL
+  fileKey       String      // R2 storage key
+  mimeType      String
+  fileSize      Int         // in bytes
+
+  // Image dimensions (optional)
+  width         Int?
+  height        Int?
+
+  // Revision Tracking
+  revisionNotes String?     @db.Text
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([projectId])
+  @@index([type])
+  @@index([status])
+}
+
+model ProjectStatusHistory {
+  id          String         @id @default(uuid())
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  fromStatus  ProjectStatus?
+  toStatus    ProjectStatus
+
+  changedById String?
+  changedBy   User?          @relation("ChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+
+  notes       String?        @db.Text
+
+  createdAt   DateTime       @default(now())
+
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
 model Notification {
-  id        String   @id @default(cuid())
+  id        String           @id @default(uuid())
   userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type      NotificationType
   title     String
-  message   String
-  type      NotificationType @default(INFO)
-  read      Boolean  @default(false)
-  actionUrl String?
-  createdAt DateTime @default(now())
+  message   String           @db.Text
+  read      Boolean          @default(false)
 
-  // Relations
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
 
-  @@index([userId, read])
-}
-
-enum NotificationType {
-  INFO
-  SUCCESS
-  WARNING
-  ERROR
-}
-
-// ============================================
-// SYSTEM MODELS
-// ============================================
-
-model ApiKey {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  name        String
-  userId      String
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-
-  @@index([key])
   @@index([userId])
+  @@index([projectId])
+  @@index([read])
+  @@index([createdAt])
 }

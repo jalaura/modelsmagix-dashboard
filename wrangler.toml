@@ -1,0 +1,33 @@
+# Cloudflare Pages Configuration for ModelMagic Dashboard
+# See: https://developers.cloudflare.com/pages/configuration/wrangler-toml/
+
+name = "modelmagic-dashboard"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Build configuration
+[build]
+command = "npm run build"
+
+# Environment variables (non-sensitive)
+[vars]
+NEXT_PUBLIC_APP_NAME = "ModelMagic"
+
+# R2 Storage Bucket Binding
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "modelmagic-assets"
+
+# Production environment
+[env.production]
+name = "modelmagic-dashboard"
+
+[env.production.vars]
+NEXT_PUBLIC_APP_URL = "https://app.modelmagic.com"
+
+# Preview environment (for PR previews)
+[env.preview]
+name = "modelmagic-dashboard-preview"
+
+[env.preview.vars]
+NEXT_PUBLIC_APP_URL = "https://preview.modelmagic-dashboard.pages.dev"

@@ -5,8 +5,12 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Models Magix Dashboard',
-  description: 'AI-powered product photography dashboard',
+  title: {
+    default: 'ModelMagic - AI-Powered Product Photography',
+    template: '%s | ModelMagic',
+  },
+  description: 'Transform your flat-lay product photos into stunning model shots with AI',
+  keywords: ['product photography', 'AI photography', 'e-commerce', 'model shots'],
 }
 
 export default function RootLayout({
@@ -15,8 +19,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        {children}
+      </body>
     </html>
   )
 }
