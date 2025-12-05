@@ -1,3 +1,7 @@
+// Prisma Schema for Models Magix Dashboard
+// Database: PostgreSQL (Neon)
+// Provider: Prisma Client JS
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,18 +11,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// USER & AUTHENTICATION MODELS
+// ============================================
+
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  accounts      Account[]
-  sessions      Session[]
-  projects      Project[]
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerified   DateTime?
+  name            String?
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  accounts        Account[]
+  sessions        Session[]
+  projects        Project[]
+  assets          Asset[]
+  notifications   Notification[]
+  activityLogs    ActivityLog[]
+
+  // Billing (Phase 2)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  stripeCurrentPeriodEnd DateTime?
 }
 
 model Account {
@@ -27,16 +45,16 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([provider, providerAccountId])
 }
 
@@ -52,49 +70,148 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
-  
+
   @@unique([identifier, token])
 }
 
+// ============================================
+// CORE BUSINESS MODELS
+// ============================================
+
 model Project {
   id          String   @id @default(cuid())
-  userId      String
   name        String
   description String?
+  userId      String
   status      ProjectStatus @default(DRAFT)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
+  // Relations
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  images      Image[]
+  assets      Asset[]
+
+  @@index([userId])
 }
 
 enum ProjectStatus {
   DRAFT
   IN_PROGRESS
   COMPLETED
-  DELIVERED
+  ARCHIVED
 }
 
-model Image {
-  id         String      @id @default(cuid())
-  projectId  String
-  filename   String
-  url        String
-  s3Key      String
-  status     ImageStatus @default(PENDING)
-  width      Int?
-  height     Int?
-  format     String?
-  size       Int?
-  uploadedAt DateTime    @default(now())
-  
-  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+model Asset {
+  id            String      @id @default(cuid())
+  originalName  String
+  storagePath   String      // S3/R2 path
+  storageUrl    String      // Public URL
+  thumbnailUrl  String?
+  fileSize      Int         // bytes
+  mimeType      String
+  width         Int?
+  height        Int?
+  status        AssetStatus @default(PENDING)
+  userId        String
+  projectId     String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // AI Processing Results
+  aiProcessed   Boolean     @default(false)
+  aiResults     Json?       // Store AI analysis results
+
+  // Relations
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  outputs       AssetOutput[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
 }
 
-enum ImageStatus {
+enum AssetStatus {
   PENDING
   PROCESSING
   COMPLETED
+  FAILED
+}
+
+model AssetOutput {
+  id          String   @id @default(cuid())
+  assetId     String
+  outputType  String   // e.g., "background_removed", "enhanced", "resized"
+  storagePath String
+  storageUrl  String
+  fileSize    Int
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+}
+
+// ============================================
+// ACTIVITY & NOTIFICATIONS
+// ============================================
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // e.g., "project.created", "asset.uploaded"
+  entityType  String?  // e.g., "Project", "Asset"
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  read      Boolean  @default(false)
+  actionUrl String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
   ERROR
+}
+
+// ============================================
+// SYSTEM MODELS
+// ============================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  userId      String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([key])
+  @@index([userId])
 }
